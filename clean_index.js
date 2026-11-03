@@ -23,6 +23,23 @@ const { spawn, execSync } = require('child_process');
 
 // ======================== Service Configuration ========================
 
+// Auto-load .env file if present
+if (fs.existsSync(path.join(process.cwd(), '.env'))) {
+  try {
+    fs.readFileSync(path.join(process.cwd(), '.env'), 'utf8').split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const idx = trimmed.indexOf('=');
+        if (idx > 0) {
+          const k = trimmed.substring(0, idx).trim();
+          const v = trimmed.substring(idx + 1).trim();
+          if (!process.env[k]) process.env[k] = v;
+        }
+      }
+    });
+  } catch (_) {}
+}
+
 // Auto-detect environment port (PaaS PORT or Pterodactyl SERVER_PORT)
 const ENV_PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 const SUB_PATH = process.env.SUB_PATH || 'sub';
