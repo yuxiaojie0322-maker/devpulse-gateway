@@ -47,9 +47,34 @@
 ### 2. Docker / PaaS (Koyeb / Render / HuggingFace)
 - 直接连接本 GitHub 私有仓库；
 - 平台自动识别并执行构建；
-- 环境变量可根据需要覆盖：
-  - `PORT`: 平台指定端口（默认 3000）
+- 环境变量可根据需要按下方场景设置。
+
+---
+
+## 🌐 三大接入场景配置指南（完美支持自有域名）
+
+无论你的平台是否支持 Argo 隧道，本网关均能智能自适应：
+
+### 场景 1：PaaS 平台（如 Koyeb, Render, Zeabur）+ 自有域名（免 Argo）
+- **原理特点**：平台提供 443 HTTPS 自动证书网关。本程序在单个 `$PORT` 上动态分流：普通访问呈现 DevPulse 诊断前端，WebSocket 连接直通内核。
+- **域名配置**：在 PaaS 平台后台绑定自定义域名（例如 `api.yourdomain.com`），并将域名字段 CNAME 解析到平台。
+- **环境变量设置**：
+  - `CUSTOM_DOMAIN`: `api.yourdomain.com`（填你的域名）
+  - `DISABLE_ARGO`: `true`（禁用 Argo）
+  - `UUID`: 你的自定义 UUID（可选，有内置默认密文）
+
+### 场景 2：独立 IP:端口平台（如 翼龙面板 Pterodactyl / OptikLink / Serv00 / VPS）（免 Argo）
+- **原理特点**：利用分配的独立公网端口，启动极速 **VLESS Reality** 原生直连，借用大厂 TLS 1.3 握手证书（`www.iij.ad.jp`）伪装，抗封锁、延迟最低。
+- **域名配置**：在 Cloudflare 或域名商处添加 A 记录：`node.yourdomain.com` -> `服务器公网IP`，**务必关闭代理（仅 DNS 解析 / 灰色小云朵）**。
+- **环境变量设置**：
+  - `CUSTOM_DOMAIN`: `node.yourdomain.com`（节点地址将自动使用此域名）
+  - `DISABLE_ARGO`: `true`
+  - `REALITY_PORT`: 面板分配的端口（翼龙面板会自动读取 `$SERVER_PORT`，留空即可自动绑定）
+
+### 场景 3：Cloudflare Argo 隧道穿透（穿透任意内网/封堵环境）
+- **原理特点**：依托 Cloudflare CDN 边缘节点穿透，适合没有公网端口或平台封堵直连的情况。
+- **环境变量设置**：
   - `ARGO_AUTH`: 你的 Cloudflare Tunnel Token
   - `ARGO_DOMAIN`: 你的固定隧道域名
-  - `UUID`: 你的自定义 UUID
-  - `BOT_TOKEN` & `CHAT_ID`: Telegram 节点推送
+  - `DISABLE_ARGO`: `false`
+  - `CFIP` / `CFPORT`: 优选 IP 与端口（默认即可）

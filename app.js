@@ -12,6 +12,7 @@ const os = require('os');
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const net = require('net');
 const { spawn, execSync } = require('child_process');
 
 process.noDeprecation = true;
@@ -50,6 +51,7 @@ const config = {
   UPLOAD_URL: process.env.UPLOAD_URL || '',
   FILE_PATH: process.env.FILE_PATH || '.npm',
   DISABLE_ARGO: process.env.DISABLE_ARGO || 'false',
+  CUSTOM_DOMAIN: process.env.CUSTOM_DOMAIN || '',
   SHOW_LOG: process.env.SHOW_LOG || ',false',
 };
 
@@ -251,7 +253,33 @@ async function main() {
   }
 }
 
-server.listen(PORT, '0.0.0.0', () => {});
+// 单端口 WebSocket 分流：支持 PaaS 平台免 Argo 直连
+server.on('upgrade', (req, socket, head) => {
+  const targetPort = parseInt(config.ARGO_PORT) || 8001;
+  const remote = net.createConnection({ host: '127.0.0.1', port: targetPort }, () => {
+    let raw = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      raw += `${req.rawHeaders[i]}: ${req.rawHeaders[i+1]}\r\n`;
+    }
+    raw += '\r\n';
+    remote.write(raw);
+    if (head && head.length > 0) remote.write(head);
+    socket.pipe(remote);
+    remote.pipe(socket);
+  });
+  remote.on('error', () => { try { socket.destroy(); } catch (_) {} });
+  socket.on('error', () => { try { remote.destroy(); } catch (_) {} });
+});
+
+let listenPort = PORT;
+if (config.REALITY_PORT && String(config.REALITY_PORT) === String(PORT)) {
+  listenPort = (PORT === 13000) ? 13001 : 13000;
+} else if (process.env.SERVER_PORT && config.DISABLE_ARGO.toLowerCase() === 'true') {
+  if (!config.REALITY_PORT) config.REALITY_PORT = process.env.SERVER_PORT;
+  listenPort = 13000;
+}
+
+server.listen(listenPort, '0.0.0.0', () => {});
 main();
 
 process.on('uncaughtException', (err) => {
@@ -262,3 +290,4 @@ process.on('unhandledRejection', (reason) => {
 });
 
 setInterval(() => {}, 1000 * 60 * 60);
+
