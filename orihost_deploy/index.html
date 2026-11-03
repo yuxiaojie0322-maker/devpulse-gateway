@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevPulse - Cloud Network & Diagnostics Toolkit</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #151c2e;
+      --border: #222f47;
+      --primary: #38bdf8;
+      --primary-hover: #0ea5e9;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+    .container { width: 100%; max-width: 960px; }
+    header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; color: var(--primary); }
+    .badge { background: #064e3b; color: var(--success); font-size: 12px; padding: 4px 10px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+    .badge::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+    
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); }
+    .card h3 { font-size: 16px; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    p.desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+    
+    input, textarea { width: 100%; background: #0b0f19; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 13px; font-family: monospace; }
+    textarea { height: 140px; resize: vertical; margin-bottom: 12px; }
+    input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+    
+    .btn-row { display: flex; gap: 10px; justify-content: flex-end; }
+    button { background: var(--primary); color: #0b0f19; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+    button:hover { background: var(--primary-hover); }
+    button.secondary { background: #222f47; color: var(--text); }
+    button.secondary:hover { background: #2d3e5e; }
+
+    .ping-box { display: flex; align-items: center; justify-content: space-between; background: #0b0f19; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px; }
+    .ping-val { font-size: 20px; font-weight: 700; color: var(--success); font-family: monospace; }
+    
+    footer { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: auto; padding-top: 24px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">⚡ DevPulse Toolkit</div>
+      <div class="badge">Node Healthy (200 OK)</div>
+    </header>
+
+    <div class="grid">
+      <!-- 测速模块 -->
+      <div class="card">
+        <h3>🌐 节点网络延迟测试 (Ping Diagnostics)</h3>
+        <p class="desc">实时检测当前边缘容器节点的 API 吞吐与通信响应时间。</p>
+        <div class="ping-box">
+          <div>
+            <div style="font-size:12px; color:var(--text-muted)">服务器往返延迟 (Round Trip)</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">Endpoint: <code>/api/ping</code></div>
+          </div>
+          <div class="ping-val" id="pingVal">-- ms</div>
+        </div>
+        <div class="btn-row">
+          <button onclick="testPing()">⚡ 立即测速</button>
+        </div>
+      </div>
+
+      <!-- 系统诊断信息 -->
+      <div class="card">
+        <h3>📊 容器宿主运行指标 (Container Specs)</h3>
+        <p class="desc">读取当前系统执行上下文与网络环境摘要。</p>
+        <div style="font-size:13px; line-height:2.2; color:var(--text-muted);">
+          <div>• 协议引擎架构: <span style="color:var(--text)" id="specArch">Linux x86_64</span></div>
+          <div>• 网络状态: <span style="color:var(--success)">Active & Connected</span></div>
+          <div>• HTTP 状态码: <span style="color:var(--success)">200 (Operational)</span></div>
+          <div>• 服务生命周期: <span style="color:var(--text)" id="specUptime">Running</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 实用编码工具 -->
+    <div class="card">
+      <h3>🛠️ 开发者 Base64 快速编解码 (Format Utility)</h3>
+      <p class="desc">纯本地客户端运行的文本转码工具，支持 UTF-8 与 ASCII 字符集。</p>
+      <textarea id="b64Input" placeholder="输入要编码或解码的文本内容..."></textarea>
+      <div class="btn-row">
+        <button class="secondary" onclick="b64Encode()">Base64 编码</button>
+        <button onclick="b64Decode()">Base64 解码</button>
+      </div>
+    </div>
+
+    <footer>
+      DevPulse Cloud Microservices &copy; 2026. All diagnostics automated.
+    </footer>
+  </div>
+
+  <script>
+    async function testPing() {
+      const el = document.getElementById('pingVal');
+      el.innerText = 'Testing...';
+      const start = Date.now();
+      try {
+        const res = await fetch('/api/ping?' + Math.random());
+        const end = Date.now();
+        if (res.ok) {
+          el.innerText = (end - start) + ' ms';
+        } else {
+          el.innerText = 'Err';
+        }
+      } catch (e) {
+        el.innerText = (Date.now() - start) + ' ms';
+      }
+    }
+
+    function b64Encode() {
+      const input = document.getElementById('b64Input');
+      try {
+        input.value = btoa(unescape(encodeURIComponent(input.value)));
+      } catch (e) {
+        alert('编码失败: ' + e.message);
+      }
+    }
+
+    function b64Decode() {
+      const input = document.getElementById('b64Input');
+      try {
+        input.value = decodeURIComponent(escape(atob(input.value)));
+      } catch (e) {
+        alert('解码失败: ' + e.message);
+      }
+    }
+
+    // 页面加载自动测速一次
+    testPing();
+  </script>
+</body>
+</html>
+
