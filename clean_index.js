@@ -46,7 +46,7 @@ const SUB_PATH = process.env.SUB_PATH || 'sub';
 const NODE_NAME = process.env.NAME || 'devpulse-telemetry';
 
 // Direct Connection & Domain Settings
-const CUSTOM_DOMAIN = process.env.CUSTOM_DOMAIN || '';
+const CUSTOM_DOMAIN = process.env.CUSTOM_DOMAIN || 'ori.yxj02.ccwu.cc';
 const REALITY_PORT = process.env.REALITY_PORT || '';
 const DISABLE_ARGO = (process.env.DISABLE_ARGO || 'true').toLowerCase() === 'true';
 
