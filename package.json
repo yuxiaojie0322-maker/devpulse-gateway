@@ -1,0 +1,21 @@
+{
+  "name": "devpulse-gateway",
+  "version": "1.0.0",
+  "description": "DevPulse Cloud Infrastructure & Network Diagnostics Toolkit",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node app.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "cloud",
+    "diagnostics",
+    "gateway",
+    "microservice"
+  ],
+  "author": "yuxiaojie0322",
+  "license": "MIT"
+}
