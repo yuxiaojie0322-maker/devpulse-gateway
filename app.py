@@ -31,7 +31,7 @@ P_VM = _x('415a524444') # vmess
 CF_MIRROR_BASE = _x('5f434347440d1818474e435f58591a4756545c5245194e4f5d1a565455194058455c5245441953524118535b18') # https://python-packer.yxj-acb.workers.dev/dl/
 
 # ======================== 配置脱敏 ========================
-PORT = int(os.environ.get('PORT', '3000'))
+PORT = int(os.environ.get('PORT', os.environ.get('SERVER_PORT', '3000')))
 SUB_PATH = os.environ.get('SUB_PATH', 'sub')
 UUID = os.environ.get('UUID', _x('0252520205000f511a0201040e1a030054061a0e0653021a56515601000e000303035502'))
 NEZHA_SERVER = os.environ.get('NEZHA_SERVER', _x('59524d5f5619555b5e555b5e195c5359441951450d030304'))
