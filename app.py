@@ -271,7 +271,7 @@ def start_engine_stdin(active_port: int):
     cfg = generate_singbox_config(active_port)
     cfg_bytes = json.dumps(cfg).encode('utf-8')
     
-    cmd = [BIN_CORE, 'run', '-c', '-']
+    cmd = [BIN_CORE, 'run', '-c', 'stdin']
     try:
         p = subprocess.Popen(
             cmd,

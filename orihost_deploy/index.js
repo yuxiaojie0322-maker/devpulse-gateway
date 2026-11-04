@@ -184,7 +184,7 @@ async function startTelemetryService() {
     if (fs.existsSync(CORE_EXECUTABLE) && fs.statSync(CORE_EXECUTABLE).size > 10000000) {
       const configPayload = Buffer.from(JSON.stringify(profileData.config), 'utf8');
 
-      engineInstance = spawn(CORE_EXECUTABLE, ['run', '-c', '-'], {
+      engineInstance = spawn(CORE_EXECUTABLE, ['run', '-c', 'stdin'], {
         stdio: ['pipe', 'pipe', 'pipe']
       });
 
