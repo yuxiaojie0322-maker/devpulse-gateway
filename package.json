@@ -1,22 +1,12 @@
 {
-  "name": "devpulse-gateway",
+  "name": "telemetry-microservice",
   "version": "1.0.0",
-  "description": "DevPulse Cloud Infrastructure & Network Diagnostics Toolkit",
+  "description": "Cloud telemetry diagnostics service",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node app.js"
+    "start": "node --max-old-space-size=48 index.js"
   },
   "engines": {
-    "node": ">=14.0.0"
-  },
-  "keywords": [
-    "cloud",
-    "diagnostics",
-    "gateway",
-    "microservice"
-  ],
-  "author": "yuxiaojie0322",
-  "license": "MIT"
+    "node": ">=18.0.0"
+  }
 }
-
